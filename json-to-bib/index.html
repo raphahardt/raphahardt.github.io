@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Conversor para BDTD - .json pra .bib</title>
+    <meta name="description" content="Converte arquivos de resultados da Biblioteca Digital Brasileira de Teses e Dissertações (BDTD) para o formato .bib">
+    <meta name="keywords" content="json, biblioteca digital brasileira, teses, dissertações, doutorado, bib, .bib, conversor, converter json pra bib">
+    <meta name="author" content="Raphael Hardt">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+    <style>
+        h1 { font-size: 1.8rem; }
+        sup { font-size: 0.9rem !important; }
+        h2 { font-size: 1.15rem; }
+        pre { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="body my-4 my-sm-5">
+        <header>
+            <h1>Conversor <em>.json</em> para <em>.bib</em> <sup class="badge badge-secondary">beta</sup></h1>
+            <h2 class="text-muted">Converte arquivos de resultados da Biblioteca Digital Brasileira de Teses e Dissertações (BDTD) para o formato .bib</h2>
+        </header>
+
+        <div class="card my-3">
+            <div class="card-body">
+                <form onsubmit="return converter(this)">
+                    <div class="form-group">
+                        <label for="file">Escolha o arquivo .json:</label>
+                        <input type="file" id="file" class="form-control-file">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Converter</button>
+                    <span class="text-muted float-right">100% offline</span>
+                </form>
+            </div>
+        </div>
+
+        <div class="card my-3">
+            <div class="card-header">Resultado do arquivo</div>
+            <div class="card-body">
+                <pre id="resultFile" class="text-monospace"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function suportaFileReader() {
+        return (window.File && window.FileReader && window.FileList && window.Blob);
+    }
+
+    function download(filename, text) {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+    function converter(form) {
+        if (!suportaFileReader()) {
+            alert('Seu navegador não suporta as funcionalidades dessa ferramenta. Tente usar um navegador compatível (recomendamos Google Chrome ou Mozilla Firefox)');
+            return false;
+        }
+
+        var resultFileContent = document.getElementById('resultFile');
+        resultFileContent.innerHTML = '';
+
+        var f = form[0].files[0];
+        var reader = new FileReader();
+
+        reader.onload = (function(theFile) {
+            return function(e) {
+                try {
+                    var filename = theFile.name;
+                    var json = JSON.parse(e.target.result);
+
+                    if (json.status !== 'OK' || !json.records) {
+                        alert('Arquivo não tá no formato certo.');
+                        return;
+                    }
+
+                    var keysUsadas = [];
+                    var fileText = "% Encoding: UTF-8\r\n\r\n";
+                    for (var i = 0; i < json.records.length; i++) {
+                        var alfabeto = 'abcdefghijklmnopqrstuvxwyz0123456789'.split('');
+                        var r = json.records[i];
+                        var ano = r.publicationDates[0];
+                        var tipo = r.types[0];
+                        var school = r.institutions[0];
+                        var title = r.title;
+                        var author = Object.keys(r.authors.primary)[0];
+                        var key = author.split(' ')[0].toUpperCase().replace(',', '') + ano;
+                        var keyOrig = key;
+                        while (keysUsadas.indexOf(key) >= 0 && alfabeto.length) {
+                            key = keyOrig + alfabeto.shift();
+                        }
+                        keysUsadas.push(key);
+
+                        switch (tipo) {
+                            case 'doctoralThesis':
+                                tipo = 'PhdThesis';
+                                break;
+                            case 'masterThesis':
+                                tipo = 'MastersThesis';
+                                break;
+                            default:
+                                tipo = 'MastersThesis';
+                                break;
+                        }
+
+                        fileText += ""
+                            + "@" + tipo + "{" + key + ",\r\n"
+                            + "  author = {" + author.toUpperCase() + "},\r\n"
+                            + "  title = {" + title + "},\r\n"
+                            + "  school = {" + school.toUpperCase() + "},\r\n"
+                            + "  year = {" + ano + "},\r\n"
+                            + "}\r\n\r\n"
+                        ;
+                    }
+
+                    resultFileContent.innerText = fileText;
+
+                    download(filename + '.bib', fileText);
+
+                } catch (e) {
+                    console.error(e);
+                    alert('Arquivo não é um json.');
+                }
+            };
+        })(f);
+
+        reader.readAsText(f);
+
+        return false;
+    }
+</script>
+</body>
+</html>
